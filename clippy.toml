@@ -1,0 +1,2 @@
+# Author names and acronyms in algorithm citations.
+doc-valid-idents = ["CMA-ES", "NSGA-II", "NSGA-III", "MOEA/D", "MAP-Elites", "HyGLEAM", "GLEAM", "RHEA", "RMHC", "RADES", "EvoPlan", "SplitMix64", ".."]
