@@ -8,13 +8,21 @@
 [![License](https://img.shields.io/crates/l/evolutionary-planning)](https://github.com/sunsided/evolutionary-planning#license)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 
-Evolutionary planning: genetic algorithms, evolution strategies and multi-objective evolutionary search over plans, paths and trajectories.
+Evolutionary planning: genetic algorithms, evolution strategies and multi-objective evolutionary search over plans, paths and trajectories. The crate covers the classic toolbox (GA, ES, CMA-ES, differential evolution, NSGA-II, NSGA-III, MOEA/D, MAP-Elites) and connects it to planning: rolling-horizon evolution over a forward model, STL robustness as objective and shield, trajectory re-planning, GA path planning on graphs and grids, and a GA over SAS+ plans with plan repair.
 
 `no_std` + `alloc`, `forbid(unsafe_code)`. Every objective is minimised, all randomness comes
 from a caller-provided `rand_core::Rng` (the crate ships `SplitMix64`), and every run takes a
 budget that is asked before each evaluation, so seeded runs are reproducible and limits are
-exact. See [`docs/design.md`](https://github.com/sunsided/evolutionary-planning/blob/main/docs/design.md) for the architecture, the design rules and the
+exact. CMA-ES follows Hansen's tutorial exactly and is tested against its Table 1. See [`docs/design.md`](https://github.com/sunsided/evolutionary-planning/blob/main/docs/design.md) for the architecture, the design rules and the
 paper table.
+
+## Who this is for
+
+- Robotics and control engineers who optimise trajectories or motion parameters online, where the objective is a black box or a simulation and gradients are not available.
+- Game AI and simulation developers who plan with rolling-horizon evolution over their own forward model, or who need a robustness score for temporal-logic (STL) requirements.
+- People with several competing objectives (time, energy, risk) who want a Pareto front from NSGA-II, NSGA-III or MOEA/D instead of a hand-tuned weighted sum.
+- Researchers who want reproducible, budget-exact runs of the reference algorithms on embedded or `no_std` targets.
+- For optimal shortest paths with a good heuristic, use [`heuristic-search`](https://github.com/sunsided/heuristic-search); for exact Pareto-optimal paths on graphs, [`multiobjective-search`](https://github.com/sunsided/multiobjective-search); for sampling-based motion planning (RRT, PRM), [`sampling-planning`](https://github.com/sunsided/sampling-planning); and for coordinating many agents on a graph, [`mapf-search`](https://github.com/sunsided/mapf-search).
 
 ## Installation
 
@@ -24,7 +32,7 @@ cargo add evolutionary-planning
 
 Enable the `sas-plus` feature for the GA over SAS+ plans.
 
-## Scope and status
+## Scope
 
 Implemented:
 
@@ -75,10 +83,6 @@ assert!(outcome.best_cost() <= 1e-10);
 ## Features
 
 - `sas-plus`: the `sas` module, a GA over SAS+ action sequences with plan repair.
-
-## Status
-
-Pre-release. Version 0.0.0 reserves the name; the API will change.
 
 ## License
 

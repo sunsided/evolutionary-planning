@@ -1,8 +1,5 @@
 # evolutionary-planning: design
 
-Status: draft on branch `draft/initial`. All five milestones are implemented; see
-[Milestones](#milestones) and [Deviations](#deviations).
-
 ## Goal and scope
 
 `evolutionary-planning` searches over plans, paths and trajectories with evolutionary
@@ -364,18 +361,6 @@ with fixed seeds per instance. The meta-GA uses linear ranking with scores 0.8..
   random configuration.
 - Operators: property tests (permutation operators keep permutations, bounds respected, chain
   operators keep gene multisets where they should).
-
-## Milestones
-
-1. Core, operators, GA, RMHC, ES — implemented.
-2. CMA-ES with IPOP, DE with LHS, warm-start library, RADES — implemented.
-3. Pareto tools, NSGA-II, NSGA-III, MOEA/D — implemented.
-4. MAP-Elites — implemented.
-5. RHEA, STL, trajectories, graph paths, SAS+, diffusion model and HyGLEAM, intersection,
-   evolutionary programmer — implemented.
-
-Also implemented beyond the plan: tree-based GP over a caller's operator language (`gp`),
-with ramped half-and-half initialisation, subtree crossover, subtree and point mutation.
 
 ## Deviations
 

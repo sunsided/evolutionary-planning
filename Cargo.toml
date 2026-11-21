@@ -1,6 +1,6 @@
 [package]
 name = "evolutionary-planning"
-description = "Evolutionary planning: genetic algorithms, evolution strategies and multi-objective evolutionary search over plans, paths and trajectories"
+description = "Evolutionary planning for no_std: genetic algorithms, evolution strategies, CMA-ES and multi-objective evolutionary search over plans, paths and trajectories"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.85"
@@ -8,8 +8,8 @@ authors = ["Markus Mayer <widemeadows@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sunsided/evolutionary-planning"
 readme = "README.md"
-keywords = ["evolutionary", "genetic-algorithm", "planning", "nsga2", "metaheuristic"]
-categories = ["algorithms", "science", "no-std"]
+keywords = ["genetic-algorithm", "evolutionary", "cma-es", "nsga2", "planning"]
+categories = ["algorithms", "artificial-intelligence", "science::robotics", "no-std"]
 # Repository tooling stays out of the published crate.
 exclude = [
     ".github/",

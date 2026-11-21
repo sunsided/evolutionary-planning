@@ -6,9 +6,7 @@ strict conventions. Path-specific rules live in `.github/instructions/*.instruct
 
 - Run checks through the Taskfile: `task ci` mirrors CI. `task lint`, `task test` and
   `task doc` are the common entry points.
-- `search-core` and `sas-plus` are crates.io dependencies. CI resolves them from crates.io;
-  local development may build against sibling checkouts through an untracked hub
-  `.cargo/config.toml` (`[patch.crates-io]`) one directory above this repository.
+- `search-core` and `sas-plus` are crates.io dependencies.
 - Every item gets a doc comment, private items included. No `mod.rs` files (use `foo.rs`
   plus `foo/`). No `// ----` separator comments (split the file into modules instead).
 - `clippy::pedantic` must stay clean. Suppress only with
