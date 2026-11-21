@@ -16,7 +16,7 @@
 //! | Single objective | [`ga`], [`diffusion`], [`hill_climb`], [`es`], [`cmaes`], [`de`], [`memetic`] |
 //! | Multi objective | [`pareto`], [`nsga2`], [`nsga3`], [`moead`] |
 //! | Quality diversity | [`map_elites`] |
-//! | Planning | [`rhea`], [`stl`], [`trajectory`], [`graph_path`], `sas` (feature `sas-plus`), [`programmer`] |
+//! | Planning | [`rhea`], [`stl`], [`trajectory`], [`graph_path`], `sas` (feature `sas-plus`), [`programmer`], [`gp`] |
 //!
 //! ```mermaid
 //! graph TD
@@ -58,6 +58,7 @@ pub mod diffusion;
 pub mod es;
 mod evaluator;
 pub mod ga;
+pub mod gp;
 pub mod graph_path;
 pub mod hill_climb;
 pub mod map_elites;

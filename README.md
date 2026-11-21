@@ -36,11 +36,12 @@ Implemented:
   and shield, plus threshold fitting from demonstrations; online trajectory optimisation with
   warm-started CMA-ES; GA path planning on graphs and grids; GA over SAS+ plans with plan
   repair, validated against `sas_plus::Task::validate_plan` (feature `sas-plus`); a
-  multi-robot intersection benchmark; an evolutionary programmer that evolves path-planning
-  GAs.
+  multi-robot intersection benchmark (`cargo run --release --example intersection`); an
+  evolutionary programmer that evolves path-planning GAs; tree-based genetic programming over
+  a caller's operator language (for example reactive navigation policies).
 
-Not implemented: tree-based genetic programming over a planning-operator language, parallel
-evaluation (use the ask/tell CMA-ES interface), neural or LLM components of the source papers.
+Not implemented: parallel evaluation (use the ask/tell CMA-ES interface), the neural and LLM
+components of the source papers.
 
 ## Example
 

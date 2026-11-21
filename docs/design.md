@@ -38,7 +38,8 @@ In scope, grouped by family:
 Out of scope: neural networks or learned world models (the forward model is the caller's),
 LLM-driven variation (EvoPlan's neural part), parallel evaluation (the crate is `no_std`; a
 caller can evaluate a batch in parallel through the ask-and-tell CMA-ES interface), and
-tree-based genetic programming over arbitrary grammars (see [Open questions](#open-questions)).
+typed or grammar-constrained GP (the `gp` module is untyped: every function accepts every
+subtree).
 
 Constraints:
 
@@ -373,8 +374,8 @@ with fixed seeds per instance. The meta-GA uses linear ranking with scores 0.8..
 5. RHEA, STL, trajectories, graph paths, SAS+, diffusion model and HyGLEAM, intersection,
    evolutionary programmer — implemented.
 
-Later: tree-based GP over a planning-operator language; an island model; SPEA2;
-parallel evaluation behind a `std` feature.
+Also implemented beyond the plan: tree-based GP over a caller's operator language (`gp`),
+with ramped half-and-half initialisation, subtree crossover, subtree and point mutation.
 
 ## Deviations
 
@@ -411,7 +412,7 @@ parallel evaluation behind a `std` feature.
 | Hansen, *The CMA Evolution Strategy: A Tutorial* (arXiv:1604.00772) | Fig. 6, Table 1 (2016 defaults with negative weights), Appendix B.2 lazy eigendecomposition, B.3 termination criteria, B.5 penalisation (63) | `cmaes` | Jacobi instead of LAPACK; IPOP from Auger and Hansen (2005), referenced by the tutorial |
 | Olesen, Nguyen, Palm, Risi, *Evolutionary Planning in Latent Space* (arXiv:2011.11293) | RMHC over a forward model, shift buffering, undiscounted return | `rhea`, `hill_climb` | the model is the caller's (no VAE/MDRNN); costs instead of rewards |
 | Yue et al., *Evolutionary-Based Online Motion Planning Framework for Quadruped Robot Jumping* (arXiv:2309.07633) | DE with Latin hypercube initialisation, pre-motion warm-start library with a distance threshold | `de`, `trajectory` | the paper's DE is implemented; its warm-start library is additionally used with CMA-ES for online trajectory re-planning (the brief asked for ES); no centroidal dynamics |
-| Lou, Ding, Wu, *Evolutionary Programmer* (arXiv:2204.02970) | GA over a bit-string encoding of operator choices and parameters; linear ranking 0.8..1.2 | `programmer` | smaller operator library (our GA's operators), graph path planning instead of UAV splines |
+| Lou, Ding, Wu, *Evolutionary Programmer* (arXiv:2204.02970) | GA over a bit-string encoding of operator choices and parameters; linear ranking 0.8..1.2 | `programmer`, `gp` | smaller operator library (our GA's operators), graph path planning instead of UAV splines; tree GP over planning programs added as the program-evolution counterpart |
 | Nukapotula et al., *EvoPlan* (arXiv:2607.06724) | STL robustness as constraint and shield; mining score for STL from D+/D−; fitness cascade (valid plans best, invalid ranked by executable fraction) | `stl`, `sas` | no LLM; threshold fitting of a template instead of LLM program edits |
 | Parque, *A Hybrid Evolutionary Approach for Multi Robot Coordinated Planning at Intersections* (arXiv:2412.01082) | RADES (eqs. 5–11), lattice roadmaps parameterised by `(b_i, h_i)` | `de::rades`, `problems::intersection` | prioritised space-time search instead of dRRT* |
 | Jakob, *Applying Evolutionary Algorithms Successfully* (arXiv:2107.11300) | GLEAM action chains and their gene- and chain-level operators, ring diffusion model, HyGLEAM adaptive memetic scheme, design rules | `operators::chain`, `diffusion`, `memetic`, this document | operator details and the adaptation rule are reconstructed from the GLEAM/HyGLEAM literature the guide cites, since the guide does not spell them out |
@@ -423,8 +424,9 @@ Each with the default taken:
 - Rewards or costs for forward models? Default: costs (minimisation everywhere).
 - Should the SAS+ bridge be a regular optional dependency (current) or dev-only? Default:
   optional dependency behind `sas-plus`, off by default.
-- Tree-based GP over a planning-operator language: the Evolutionary Programmer itself uses a
-  fixed-length bit string, which is implemented. Default: tree GP later.
+- Tree GP (`gp`) evolves memoryless programs; should it gain state (registers or a memory
+  terminal) so policies can solve wall-following episodes? Default: memoryless, documented in
+  the navigation test.
 - Online trajectory warm starts: the paper used DE; both DE (`De::run_from` with library
   seeds) and CMA-ES (`trajectory`) are supported. Default: CMA-ES for `trajectory`.
 - Should `Stats::best_cost` of multi-objective runs carry a scalar (for example the

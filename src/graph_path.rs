@@ -117,6 +117,12 @@ impl Grid {
         y * self.width + x
     }
 
+    /// Whether cell `(x, y)` is inside the grid and not blocked.
+    #[must_use]
+    pub fn is_free(&self, x: usize, y: usize) -> bool {
+        x < self.width && y < self.height && !self.blocked[y * self.width + x]
+    }
+
     /// The cell `(x, y)` of a vertex.
     #[must_use]
     pub fn cell(&self, node: usize) -> (usize, usize) {
