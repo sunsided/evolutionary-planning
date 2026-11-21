@@ -24,6 +24,7 @@ pub mod de;
 pub mod es;
 mod evaluator;
 pub mod ga;
+pub mod graph_path;
 pub mod hill_climb;
 pub mod map_elites;
 pub mod moead;
