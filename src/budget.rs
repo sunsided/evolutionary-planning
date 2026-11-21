@@ -127,4 +127,6 @@ pub enum Stop {
     /// An algorithm-specific stagnation criterion fired (for example RMHC's restart limit,
     /// the diffusion model's stagnation counters, or DE's population collapse).
     Stagnation,
+    /// A CMA-ES termination criterion from the tutorial's Appendix B.3 fired.
+    CmaEs(crate::cmaes::Termination),
 }
