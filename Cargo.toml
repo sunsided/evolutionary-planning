@@ -21,7 +21,7 @@ libm = "0.2.16"
 # The generator trait every algorithm draws its randomness from.
 rand_core = { version = "0.10.1", default-features = false }
 # The shared Budget trait of the planning crates.
-search-core = { path = "../search-core", version = "0.0.0", default-features = false }
+search-core = { path = "../search-core", version = ">=0.0.0, <0.2", default-features = false }
 # SAS+ tasks for the plan GA; read-only, behind the `sas-plus` feature.
 sas-plus = { path = "../sas-plus", version = "0.2.1", default-features = false, optional = true }
 
