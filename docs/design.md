@@ -68,7 +68,8 @@ All randomness comes from a caller-provided `rand_core::Rng`. The crate ships `S
 (the same generator as `stochastic-search`), so a seed reproduces a run across releases
 regardless of other crates' versions. Floating-point and integer helpers (`unit_f64`,
 `below` with Lemire's unbiased method, standard normal via the polar method) live in `rng`.
-No algorithm iterates a hash map. Every algorithm has a same-seed-same-result test.
+No algorithm iterates a hash map. Every algorithm has a same-seed-same-result test (unit
+tests, and `tests/it/determinism.rs` for the rest).
 
 Operator traits are generic over the generator in the method
 (`fn mutate<R: Rng + ?Sized>(&mut self, genome: &mut G, rng: &mut R)`), which keeps the hot
@@ -77,9 +78,13 @@ path monomorphised. Closures are accepted through `&mut dyn Rng` adapters
 
 ### Budgets
 
-Every run takes a `search_core::Budget<Stats>`; `Limits` (evaluations, generations, target
-cost) implements it, and so does any `FnMut(&Stats) -> bool`, which lets a `std` caller add a
-deadline. The budget is asked **before every objective evaluation**, so a limit of `n`
+Every population run (GA, diffusion, RMHC, ES, CMA-ES, IPOP, DE, RADES, NSGA-II/III,
+MOEA/D, MAP-Elites, the SAS+ and path solvers) takes a `search_core::Budget<Stats>`;
+`Limits` (evaluations, generations, target cost) implements it, and so does any `FnMut(&Stats) -> bool`, which lets a `std` caller add a
+deadline. Planners that work per decision take a plain evaluation count instead: RHEA
+(`Config::evaluations` per decision), the online trajectory optimiser (per replan), STL
+fitting and the evolutionary programmer (per run). The budget is asked **before every
+objective evaluation**, so a limit of `n`
 evaluations performs exactly `n`. When a budget stops a run in the middle of a generation the
 partial generation is not merged into the population, but every evaluated individual took
 part in the best-so-far bookkeeping, so no evaluation is wasted for the returned result.
@@ -161,11 +166,12 @@ better). Selection schemes: tournament (size `k`, deterministic), truncation, ro
 ### Diffusion model (GLEAM)
 
 Individuals sit on a ring; each one's deme is itself plus `deme/2` neighbours on each side.
-Each generation, every individual mates with a partner selected from its deme by linear
-ranking, offspring are produced by the GLEAM operators, the best offspring is (optionally)
-locally improved, and it replaces the centre individual according to an acceptance rule:
-`Always`, `BetterThanWorstInDeme` ("local least"), `BetterThanParent`, or `Elitist` (better
-than the parent, and the parent must not be the deme's best unless improved). Two stagnation
+Each generation, every individual (in ring order, updated in place) mates with a partner
+selected from its deme by the configured selection (linear ranking in GLEAM), `k` offspring
+are produced by the GLEAM operators, the best one is (optionally) locally improved, and it
+replaces the centre individual according to an acceptance rule: `Always`, `LocalLeast`
+(better than the deme's worst), `BetterParent`, or `LocalElitist` (better than the deme's
+worst, and better than the parent if the parent is the deme's best). Two stagnation
 counters (generations without improvement of any deme best, generations without any
 acceptance) are the termination criteria Jakob recommends.
 
@@ -174,10 +180,12 @@ acceptance) are the termination criteria Jakob recommends.
 `LocalSearch<G>` improves a genome under an evaluation cap. Provided: RMHC (any genome with a
 mutation) and Rosenbrock's method (real vectors). `Adaptive` implements HyGLEAM's adaptive
 single-meme scheme: a small set of intensity levels (evaluation caps) and frequency levels
-(fraction of offspring improved), each a discrete distribution adapted by cost-benefit:
-the relative fitness gain per evaluation of each level, accumulated over a matings window,
-shifts probability mass towards the more profitable level, with a floor so no level dies.
-The exact update rule is a reconstruction (Jakob 2021 only sketches it; see deviations).
+(probability that an offspring is improved), each a discrete distribution adapted by
+cost-benefit: every `window` local searches, the levels used in the window share their
+probability mass in proportion to their mean relative gain per evaluation (moving halfway),
+unused levels keep theirs, and a floor keeps every level alive. The exact rule is a
+reconstruction (Jakob 2021 only sketches it; see deviations), and since benefit is measured
+per local search, intensity adapts directly while frequency adapts only weakly.
 Lamarckian (write back) and Baldwinian (fitness only) are both supported.
 
 ### Random-mutation hill climbing
@@ -254,7 +262,7 @@ seed of the next decision (Olesen et al. 2020). RMHC is the population-of-one co
 
 ### STL
 
-Finite-trace signal temporal logic over a trace `&[&[f64]]` (time steps × signals) with the
+Finite-trace signal temporal logic over a trace `&[S]` with `S: AsRef<[f64]>` (time steps × signals) with the
 quantitative (robustness) semantics of Donzé and Maler: predicates `x_i ≥ c` and `x_i ≤ c`,
 negation, conjunction, disjunction, bounded `G[a,b]`, `F[a,b]`, `U[a,b]`. Windows are clipped
 to the trace (finite-trace semantics; `G` over an empty window is `+∞`, `F` is `-∞`).
@@ -274,8 +282,8 @@ the initial mean (Yue et al.'s pre-motion library, transferred from DE to CMA-ES
 
 ### Graph and grid paths
 
-Genome: a simple path (no repeated vertex) from start to goal in a caller graph. Init: random
-walk biased away from visited vertices, with loop removal. Crossover: at a vertex shared by
+Genome: a simple path (no repeated vertex) from start to goal in a caller graph. Init:
+randomised depth-first search. Crossover: at a vertex shared by
 both parents (one-point at common node). Mutation: replace the subpath between two path
 vertices by a random walk. Repair: cut loops. Tests compare with Dijkstra.
 
@@ -294,15 +302,18 @@ returned plan with `validate_plan` and compare with `perfect_heuristic` optima o
 After Parque (2024): each robot has a reference path through an intersection; a lattice
 roadmap around it is parameterised by base `b_i` and height `h_i`; the coordinated plan is
 computed in the joint graph by prioritised space-time search (a substitute for dRRT*), and the
-total path length (plus collision penalties) is the cost to minimise with RADES, DE or CMA-ES.
+total path length plus a price per time step (plus penalties for robots without a plan) is
+the cost to minimise with RADES, DE or CMA-ES. Without the time price the straight middle row
+plus waiting makes almost every configuration cost the same (checked by a test).
 
 ### Evolutionary programmer
 
-After Lou, Ding and Wu (2022): a bit-string genome encodes a GA configuration for graph path
-planning (selection operator and parameter, elitism, crossover and mutation operator, mutation
-rate, population size, repair, ending criterion); fitness is the mean cost reached by the
-decoded GA on a set of training instances within a fixed evaluation budget plus a runtime
-(evaluation) term. The meta-GA uses linear ranking with scores 0.8..1.2 as in the paper.
+After Lou, Ding and Wu (2022): an 18-bit genome encodes a GA configuration for graph path
+planning (selection operator and its parameter, elitism, crossover and mutation rates,
+population size, reroute expansions, generational or steady-state scheme and replacement);
+fitness is the mean relative excess over the Dijkstra optimum reached by the decoded GA on
+training instances within a fixed evaluation budget (equal for all, so no runtime term),
+with fixed seeds per instance. The meta-GA uses linear ranking with scores 0.8..1.2 as in the paper.
 
 ## Design rules (from Jakob 2021, "Applying Evolutionary Algorithms Successfully")
 
@@ -323,8 +334,9 @@ decoded GA on a set of training instances within a fixed evaluation budget plus 
 8. **Structured populations** (diffusion model) against premature convergence; panmictic
    populations only when speed matters more than quality.
 9. **Stagnation-based termination** in addition to budgets.
-10. **Compare stochastic algorithms over many seeds** (benches report medians over seeds;
-    tests use several seeds where a claim is statistical).
+10. **Compare stochastic algorithms over many seeds**: tests use several seeds where a claim
+    is statistical (Rosenbrock with CMA-ES, SAS+ over 40 tasks); benches use one fixed seed
+    and measure time, not quality.
 11. **Memetic search needs adaptation** of frequency and intensity, since the best setting
     is problem-dependent.
 
@@ -332,16 +344,23 @@ decoded GA on a set of training instances within a fixed evaluation budget plus 
 
 - Deterministic seeds everywhere; a same-seed-same-result test per algorithm.
 - Single objective: known optima on sphere, ellipsoid, Rosenbrock, Rastrigin, OneMax,
-  LeadingOnes, small TSPs (brute force).
-- CMA-ES: weights against Figure 7 of the tutorial (λ and Σ negative weights for
-  n = 5, 10, 25, 100); invariance under strictly monotone transforms; condition number of the
+  LeadingOnes and a circle tour with a closed-form optimum.
+- CMA-ES: λ and the sum of all weights against Figure 7 of the tutorial for
+  n = 5, 10, 25, 100 (to 0.05; Table 1 exactly, see deviations); invariance under strictly monotone transforms; condition number of the
   learned C on the ellipsoid; convergence on sphere, ellipsoid and Rosenbrock.
 - Multi-objective: non-dominated sorting against an O(n²) reference (duplicates included);
-  NSGA-II/III and MOEA/D fronts on small discrete problems are subsets of the brute-force
-  Pareto front, with full coverage when the population is at least the front size; hypervolume
-  against hand-computed values.
-- MAP-Elites archive invariants as above.
-- SAS+: GA plans validated with `Task::validate_plan`, costs equal.
+  NSGA-II, NSGA-III and MOEA/D fronts on a constrained 12-item knapsack contain only
+  brute-force Pareto-optimal points; NSGA-II and MOEA/D (Tchebycheff, with archive) find the
+  whole front, NSGA-III at least 80 %; NSGA-II covers the LOTZ front; NSGA-III lands on the
+  DTLZ2 sphere; hypervolume against hand-computed values and a grid count.
+- MAP-Elites: every elite lies in its own cell and is the cheapest genome ever offered there.
+- SAS+: GA plans validated with `Task::validate_plan` (costs equal, never below the optimum)
+  for every decoding and repair mode.
+- STL: every operator by hand, robustness sign against brute-force Boolean semantics, and an
+  NSGA-II front under an STL constraint that satisfies it.
+- GLEAM chains: a diffusion-model run evolves a typed move/turn program to a target.
+- Intersection: plans are collision-free, the objective is not flat, RADES beats the median
+  random configuration.
 - Operators: property tests (permutation operators keep permutations, bounds respected, chain
   operators keep gene multisets where they should).
 
@@ -369,7 +388,8 @@ parallel evaluation behind a `std` feature.
   here) and whether `r1 = r2` is allowed (redrawn here, as a zero difference vector is
   useless).
 - **Intersection benchmark**: prioritised space-time Dijkstra replaces dRRT* as the
-  coordinator; one roadmap edge per time step.
+  coordinator; one roadmap edge per time step; the cost adds a price per time step to the
+  paper's total length, because with waiting allowed the length alone is nearly constant.
 - **2309.07633**: the paper's DE + LHS + pre-motion library is implemented in `de`; the same
   library also warm-starts CMA-ES in `trajectory`, since the brief asked for ES-based online
   trajectory optimisation. No centroidal dynamics.
