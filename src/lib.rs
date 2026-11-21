@@ -20,6 +20,7 @@ extern crate alloc;
 pub mod budget;
 pub mod cmaes;
 pub mod cost;
+pub mod de;
 pub mod es;
 mod evaluator;
 pub mod ga;
