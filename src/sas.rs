@@ -238,19 +238,37 @@ impl Initializer<Vec<OpId>> for ApplicableWalk<'_> {
     }
 }
 
-/// Genotypic repair: writes the decoded plan back (skipped operators removed, the chain cut
-/// after the goal), optionally replacing each inapplicable operator by a uniformly chosen
-/// applicable one first.
+/// Whether and how chains are repaired genotypically.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RepairMode {
+    /// No genotypic repair: chains keep their inapplicable genes, and only the decoding
+    /// skips them (phenotypic repair; the default, following Jakob's advice that genotypic
+    /// repair freezes order changes that need several steps).
+    #[default]
+    Off,
+    /// Write the executed plan back: inapplicable genes are dropped and the chain is cut
+    /// after the goal.
+    Drop,
+    /// Like `Drop`, but each inapplicable gene is replaced by a uniformly chosen applicable
+    /// operator.
+    Replace,
+}
+
+/// Genotypic repair of operator chains, see [`RepairMode`].
 #[derive(Debug, Clone, Copy)]
 pub struct PlanRepair<'t> {
     /// The task.
     pub task: &'t Task,
-    /// Replace inapplicable operators by random applicable ones instead of dropping them.
-    pub replace_inapplicable: bool,
+    /// What the repair does.
+    pub mode: RepairMode,
 }
 
 impl Repair<Vec<OpId>> for PlanRepair<'_> {
     fn repair<R: Rng + ?Sized>(&mut self, genome: &mut Vec<OpId>, rng: &mut R) {
+        if self.mode == RepairMode::Off {
+            return;
+        }
+
         let task = self.task;
         let mut state = task.initial_state();
         let mut repaired = Vec::with_capacity(genome.len());
@@ -261,7 +279,7 @@ impl Repair<Vec<OpId>> for PlanRepair<'_> {
 
             let op = if op < task.operators.len() && task.is_applicable(op, &state) {
                 op
-            } else if self.replace_inapplicable {
+            } else if self.mode == RepairMode::Replace {
                 let applicable: Vec<OpId> = task.applicable_operators(&state).collect();
                 if applicable.is_empty() {
                     continue;
@@ -288,18 +306,18 @@ pub struct Config {
     pub max_len: usize,
     /// The decoding rule.
     pub decoding: Decoding,
-    /// Apply the genotypic [`PlanRepair`] (replacing inapplicable operators) to every child.
-    pub genotypic_repair: bool,
+    /// The genotypic repair applied to every child.
+    pub repair: RepairMode,
 }
 
 impl Default for Config {
-    /// 60 chains of at most 40 operators, phenotypic skipping plus genotypic repair.
+    /// 60 chains of at most 40 operators, phenotypic skipping, no genotypic repair.
     fn default() -> Self {
         Self {
             population_size: 60,
             max_len: 40,
             decoding: Decoding::Skip,
-            genotypic_repair: true,
+            repair: RepairMode::Off,
         }
     }
 }
@@ -384,7 +402,7 @@ where
             mutation,
             repair: PlanRepair {
                 task,
-                replace_inapplicable: config.genotypic_repair,
+                mode: config.repair,
             },
         },
     );
@@ -410,11 +428,10 @@ mod tests {
     use super::*;
     use crate::{Limits, SplitMix64};
 
-    /// On random tasks (with conditional effects and axioms), every plan the GA reports passes
-    /// `validate_plan` with the reported cost, is never cheaper than the optimum, and the GA
-    /// finds a plan for most solvable tasks and an optimal one for many.
-    #[test]
-    fn plans_validate_against_sas_plus() {
+    /// The outcome counts of [`solve`] over 40 random tasks with conditional effects and
+    /// axioms: `(solvable, found, optimal)`. Every reported plan must pass `validate_plan` with
+    /// the reported cost and never beat the optimum from `perfect_heuristic`.
+    fn validate_over_random_tasks(config: &Config) -> (usize, usize, usize) {
         let (mut solvable, mut found, mut optimal) = (0, 0, 0);
         for seed in 0..40 {
             let params = RandomTaskParams {
@@ -433,21 +450,47 @@ mod tests {
             solvable += 1;
             let result = solve(
                 &task,
-                &Config::default(),
+                config,
                 &mut Limits::evaluations(6_000),
                 &mut SplitMix64::new(seed),
             );
             if let (Some(plan), Some(cost)) = (&result.plan, result.cost) {
-                assert_eq!(task.validate_plan(plan), Some(cost), "seed {seed}");
-                assert!(cost >= best, "seed {seed}: {cost} < optimum {best}");
+                assert_eq!(
+                    task.validate_plan(plan),
+                    Some(cost),
+                    "{config:?}, seed {seed}"
+                );
+                assert!(
+                    cost >= best,
+                    "{config:?}, seed {seed}: {cost} < optimum {best}"
+                );
                 found += 1;
                 optimal += usize::from(cost == best);
             }
         }
 
-        assert!(solvable >= 10, "only {solvable} solvable tasks");
-        assert!(found * 10 >= solvable * 9, "found {found} of {solvable}");
-        assert!(optimal * 2 >= solvable, "optimal {optimal} of {solvable}");
+        (solvable, found, optimal)
+    }
+
+    /// Every decoding and repair combination reports only valid plans; the default finds a
+    /// plan for 90 % of the solvable tasks and an optimal one for half.
+    #[test]
+    fn plans_validate_against_sas_plus() {
+        for decoding in [Decoding::Skip, Decoding::Strict] {
+            for repair in [RepairMode::Off, RepairMode::Drop, RepairMode::Replace] {
+                let config = Config {
+                    decoding,
+                    repair,
+                    ..Config::default()
+                };
+                let (solvable, found, optimal) = validate_over_random_tasks(&config);
+                assert!(solvable >= 10, "only {solvable} solvable tasks");
+                if config == Config::default() {
+                    assert!(found * 10 >= solvable * 9, "found {found} of {solvable}");
+                    assert!(optimal * 2 >= solvable, "optimal {optimal} of {solvable}");
+                }
+            }
+        }
     }
 
     /// The cascade ranks invalid chains by unsatisfied goals and executed fraction, below any
@@ -471,7 +514,7 @@ mod tests {
         let mut rng = SplitMix64::new(2);
         let mut repair = PlanRepair {
             task: &task,
-            replace_inapplicable: true,
+            mode: RepairMode::Replace,
         };
         let objective = PlanObjective::new(&task, Decoding::Strict, 20);
         for _ in 0..50 {
