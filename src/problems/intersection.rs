@@ -2,15 +2,20 @@
 //! intersection on a lattice roadmap built around its reference path, the lattice of robot
 //! `i` is parameterised by its base `b_i` and height `h_i`, and the cost of a parameter
 //! vector `x = (b_1, h_1, …, b_N, h_N)` is the total length of the coordinated, collision-free
-//! paths (equation (1) of the paper), so any gradient-free optimiser (RADES, DE, CMA-ES) can
-//! search the roadmap configurations.
+//! paths (equation (1) of the paper) plus a price per time step (see below), so any
+//! gradient-free optimiser (RADES, DE, CMA-ES) can search the roadmap configurations.
 //!
 //! The paper coordinates the robots with dRRT* in the composite roadmap. This benchmark uses
 //! prioritised space-time search instead: robots plan in index order on their own roadmaps,
 //! each avoiding the already planned ones (positions at every time step and edge midpoint
 //! at least `safety` apart; a robot leaves the scene at its goal). One roadmap edge takes one
-//! time step and waiting in place is allowed. A robot that finds no plan adds a penalty of
-//! `1000` plus its straight-line distance, so infeasible configurations still compare.
+//! time step and waiting in place is allowed. Every step, moving or waiting, also costs
+//! [`Intersection::time_cost`]: with length alone the straight middle row plus waits would
+//! make nearly every configuration cost the same, whereas with a price on time a coarse
+//! lattice (large `b_i`, fewer and faster steps) pays off unless it causes conflicts that
+//! need waits or detours.
+//! A robot that finds no plan adds a penalty of `1000` plus its straight-line distance, so
+//! infeasible configurations still compare.
 //!
 //! ```
 //! use evolutionary_planning::de::rades::{Config, Rades};
@@ -75,6 +80,8 @@ pub struct Intersection {
     pub safety: f64,
     /// The bounds of each `(b_i, h_i)` pair: the paper's `b ∈ [1, 6]`, `h ∈ [0.5, 5]`.
     pub parameter_bounds: [(f64, f64); 2],
+    /// The cost of one time step, moving or waiting, in length units. Default `1`.
+    pub time_cost: f64,
 }
 
 /// A roadmap: vertex positions and forward edges.
@@ -138,6 +145,7 @@ impl Intersection {
             ],
             safety: 1.5,
             parameter_bounds: [(1.0, 6.0), (0.5, 5.0)],
+            time_cost: 1.0,
         }
     }
 
@@ -166,6 +174,15 @@ impl Intersection {
         }
 
         Some(planned)
+    }
+
+    /// The cost of one trajectory: its length plus [`Intersection::time_cost`] per step.
+    #[must_use]
+    pub fn trajectory_cost(&self, trajectory: &[Point]) -> f64 {
+        trajectory
+            .windows(2)
+            .map(|w| distance(w[0], w[1]) + self.time_cost)
+            .sum()
     }
 
     /// The number of time steps (and midpoints) at which two robots are closer than `safety`.
@@ -252,7 +269,7 @@ impl Intersection {
     }
 
     /// Prioritised space-time Dijkstra on `roadmap` avoiding the `planned` trajectories;
-    /// minimises path length, then time (waiting costs `1e-3` per step).
+    /// minimises path length plus [`Intersection::time_cost`] per step.
     fn space_time(&self, roadmap: &Roadmap, planned: &[Vec<Point>]) -> Option<Vec<Point>> {
         /// A search entry ordered by smallest cost first.
         #[derive(PartialEq)]
@@ -292,10 +309,10 @@ impl Intersection {
                 continue;
             }
 
-            let wait = core::iter::once((v, 1e-3));
+            let wait = core::iter::once((v, 0.0));
             for (w, length) in wait.chain(roadmap.edges[v].iter().copied()) {
                 let next = (t + 1) * n + w;
-                let total = cost + length;
+                let total = cost + length + self.time_cost;
                 if total < best[next]
                     && self.free(roadmap.points[v], roadmap.points[w], t + 1, planned)
                 {
@@ -328,8 +345,8 @@ impl Intersection {
 }
 
 impl Objective<Vec<f64>> for Intersection {
-    /// The total path length of the coordinated plan; failed robots add `1000` plus their
-    /// straight-line distance.
+    /// The total cost of the coordinated plan: path length plus [`Intersection::time_cost`]
+    /// per step; failed robots add `1000` plus their straight-line distance.
     fn evaluate(&mut self, x: &Vec<f64>) -> f64 {
         let mut planned: Vec<Vec<Point>> = Vec::with_capacity(self.robots.len());
         let mut cost = 0.0;
@@ -340,7 +357,7 @@ impl Objective<Vec<f64>> for Intersection {
                 self.parameter(x, 2 * i + 1, 1),
             );
             if let Some(path) = self.space_time(&roadmap, &planned) {
-                cost += path.windows(2).map(|w| distance(w[0], w[1])).sum::<f64>();
+                cost += self.trajectory_cost(&path);
                 planned.push(path);
             } else {
                 let (start, goal) = (
@@ -446,7 +463,7 @@ mod tests {
     use crate::{Limits, SplitMix64};
 
     /// Every optimiser finds a collision-free coordinated plan for four robots (RADES also
-    /// for eight), and the reported cost equals the planned lengths.
+    /// for eight), and the reported cost equals the cost of the planned trajectories.
     #[test]
     fn coordinated_plans_are_collision_free() {
         for robots in [4, 8] {
@@ -496,12 +513,9 @@ mod tests {
             for outcome in outcomes {
                 let x = outcome.best_genome().expect("evaluated");
                 let plan = scene.plan(x).expect("feasible");
-                let length: f64 = plan
-                    .iter()
-                    .map(|p| p.windows(2).map(|w| distance(w[0], w[1])).sum::<f64>())
-                    .sum();
+                let cost: f64 = plan.iter().map(|p| scene.trajectory_cost(p)).sum();
                 assert_eq!(scene.collisions(&plan), 0, "{robots} robots");
-                assert!((length - outcome.best_cost()).abs() < 1e-9);
+                assert!((cost - outcome.best_cost()).abs() < 1e-9);
                 assert!(
                     plan.iter()
                         .zip(&scene.robots)
@@ -509,6 +523,36 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The objective is not flat: random configurations differ, and RADES with the paper's
+    /// 300 evaluations beats the median random configuration.
+    #[test]
+    fn configurations_matter() {
+        let mut scene = Intersection::crossing(4);
+        let mut bounds = scene.bounds();
+        let mut rng = SplitMix64::new(11);
+        let mut costs: alloc::vec::Vec<f64> = (0..40)
+            .map(|_| {
+                let x = crate::operators::Initializer::initialize(&mut bounds, &mut rng);
+                scene.evaluate(&x)
+            })
+            .collect();
+        costs.sort_by(f64::total_cmp);
+        let outcome = Rades::new(Config::default(), scene.bounds()).run(
+            &mut scene,
+            &mut Limits::evaluations(300),
+            &mut (),
+            &mut rng,
+        );
+
+        assert!(costs[39] - costs[0] > 1.0, "flat objective: {costs:?}");
+        assert!(
+            outcome.best_cost() < costs[20],
+            "{} vs median {}",
+            outcome.best_cost(),
+            costs[20]
+        );
     }
 
     /// Lattice resampling and roadmap structure.
