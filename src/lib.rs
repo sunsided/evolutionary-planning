@@ -35,6 +35,7 @@ pub mod observer;
 pub mod operators;
 pub mod pareto;
 pub mod problems;
+pub mod rhea;
 pub mod rng;
 #[cfg(feature = "sas-plus")]
 pub mod sas;
