@@ -79,6 +79,56 @@ impl<G: ?Sized, P: Repair<G> + ?Sized> Repair<G> for &mut P {
     }
 }
 
+/// The variation operators of algorithms that bring their own selection (NSGA-II,
+/// NSGA-III, MOEA/D, MAP-Elites): initialisation, crossover, mutation and repair.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Variation<I, X, M, P> {
+    /// Creates the initial genomes.
+    pub init: I,
+    /// Recombines two parents.
+    pub crossover: X,
+    /// Mutates a child.
+    pub mutation: M,
+    /// Repairs a child after variation; [`NoRepair`] if none.
+    pub repair: P,
+}
+
+impl<I, X, M, P> Variation<I, X, M, P> {
+    /// Breeds two children of `a` and `b`: crossover with probability `crossover_rate`
+    /// (copies otherwise), each child mutated with probability `mutation_rate`, then repaired.
+    pub fn breed<G, R>(
+        &mut self,
+        a: &G,
+        b: &G,
+        crossover_rate: f64,
+        mutation_rate: f64,
+        rng: &mut R,
+    ) -> [G; 2]
+    where
+        G: Clone,
+        X: Crossover<G>,
+        M: Mutation<G>,
+        P: Repair<G>,
+        R: Rng + ?Sized,
+    {
+        let mut children = if chance(rng, crossover_rate) {
+            self.crossover.crossover(a, b, rng)
+        } else {
+            [a.clone(), b.clone()]
+        };
+
+        for child in &mut children {
+            if chance(rng, mutation_rate) {
+                self.mutation.mutate(child, rng);
+            }
+
+            self.repair.repair(child, rng);
+        }
+
+        children
+    }
+}
+
 /// The repair that changes nothing.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct NoRepair;

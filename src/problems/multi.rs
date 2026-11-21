@@ -203,6 +203,54 @@ impl MultiObjective<Vec<bool>> for Knapsack {
     }
 }
 
+/// LOTZ, LeadingOnes-TrailingZeros (Laumanns, Thiele and Zitzler 2004), as costs: minimise
+/// `-(leading ones)` and `-(trailing zeros)` of a bit string of length `n`. The Pareto front
+/// is the `n + 1` points `(-k, -(n - k))`, each reached by `1^k 0^(n-k)` only.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Lotz;
+
+impl MultiObjective<Vec<bool>> for Lotz {
+    fn objectives(&self) -> usize {
+        2
+    }
+
+    fn evaluate(&mut self, genome: &Vec<bool>, out: &mut [f64]) -> f64 {
+        let leading = genome.iter().take_while(|&&b| b).count();
+        let trailing = genome.iter().rev().take_while(|&&b| !b).count();
+        #[expect(clippy::cast_precision_loss, reason = "lengths are far below 2^52")]
+        {
+            out[0] = -(leading as f64);
+            out[1] = -(trailing as f64);
+        }
+
+        0.0
+    }
+}
+
+/// Every objective vector (and violation) of the `2^n` bit strings of length `n`, for
+/// brute-force reference fronts.
+///
+/// # Panics
+///
+/// Panics if `n > 20` (a million genomes).
+#[must_use]
+pub fn enumerate_bits<M: MultiObjective<Vec<bool>>>(
+    problem: &mut M,
+    n: usize,
+) -> Vec<(Vec<bool>, Vec<f64>, f64)> {
+    assert!(n <= 20, "too many genomes to enumerate");
+
+    let m = problem.objectives();
+    (0..1u32 << n)
+        .map(|mask| {
+            let genome: Vec<bool> = (0..n).map(|i| mask >> i & 1 == 1).collect();
+            let mut out = alloc::vec![0.0; m];
+            let violation = problem.evaluate(&genome, &mut out);
+            (genome, out, violation)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
