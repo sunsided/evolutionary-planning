@@ -19,6 +19,8 @@ mod reference;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 
+use crate::sanitize;
+
 pub use archive::ParetoArchive;
 pub use hypervolume::hypervolume;
 pub use reference::{das_dennis, two_layer};
@@ -77,8 +79,7 @@ pub fn constrained_dominates(a: &[f64], violation_a: f64, b: &[f64], violation_b
 ///
 /// `O(m n²)` for `n` points with `m` objectives.
 ///
-/// Objectives and violations must not be NaN (the algorithms map NaN to `+∞` first): with
-/// NaN, dominance can be cyclic, and the points on a cycle end up in no front.
+/// NaN objectives and violations count as `+∞`, so every point lands in exactly one front.
 ///
 /// # Panics
 ///
@@ -86,11 +87,17 @@ pub fn constrained_dominates(a: &[f64], violation_a: f64, b: &[f64], violation_b
 #[must_use]
 pub fn non_dominated_sort<P: AsRef<[f64]>>(points: &[P], violations: &[f64]) -> Vec<Vec<usize>> {
     let n = points.len();
+    // NaN would make dominance cyclic and drop the points on a cycle from every front.
+    let points: Vec<Vec<f64>> = points
+        .iter()
+        .map(|p| p.as_ref().iter().map(|&x| sanitize(x)).collect())
+        .collect();
+    let violations: Vec<f64> = violations[..n].iter().map(|&v| sanitize(v)).collect();
     let mut dominated_by: Vec<Vec<usize>> = alloc::vec![Vec::new(); n];
     let mut counts = alloc::vec![0usize; n];
     for i in 0..n {
         for j in i + 1..n {
-            let (a, b) = (points[i].as_ref(), points[j].as_ref());
+            let (a, b) = (&points[i], &points[j]);
             if constrained_dominates(a, violations[i], b, violations[j]) {
                 dominated_by[i].push(j);
                 counts[j] += 1;
@@ -214,6 +221,22 @@ mod tests {
 
         assert!(d[0].is_infinite() && d[4].is_infinite());
         assert!((d[1] - 1.0).abs() < 1e-12 && (d[2] - 1.0).abs() < 1e-12);
+    }
+
+    /// NaN objectives and violations rank as `+∞`: every point lands in exactly one front.
+    #[test]
+    fn sort_treats_nan_as_worst() {
+        // Compared raw, these three dominate each other in a cycle and land in no front.
+        let nan = f64::NAN;
+        let cycle = [[0.0, 1.0, nan], [1.0, nan, 0.0], [nan, 0.0, 1.0]];
+        assert_eq!(
+            non_dominated_sort(&cycle, &[0.0; 3]),
+            alloc::vec![alloc::vec![0, 1, 2]]
+        );
+        assert_eq!(
+            non_dominated_sort(&[[1.0], [5.0]], &[f64::NAN, 1.0]),
+            alloc::vec![alloc::vec![1], alloc::vec![0]]
+        );
     }
 
     /// Constrained domination prefers feasibility, then smaller violation.
