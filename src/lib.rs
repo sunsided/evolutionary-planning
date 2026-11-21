@@ -25,6 +25,7 @@ pub mod es;
 mod evaluator;
 pub mod ga;
 pub mod hill_climb;
+pub mod map_elites;
 pub mod moead;
 mod multi;
 pub mod nsga2;

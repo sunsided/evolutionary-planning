@@ -423,6 +423,36 @@ impl Crossover<Vec<f64>> for Arithmetic {
     }
 }
 
+/// Iso+line variation (Vassiliades and Mouret 2018), the directional crossover of
+/// MAP-Elites: `a + σ_iso N(0, I) + σ_line N(0, 1) (b - a)`, and symmetrically for the second
+/// child. Unbounded; combine with [`Clamp`] or [`Reflect`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IsoLineDd {
+    /// The isotropic Gaussian spread `σ_iso`.
+    pub sigma_iso: f64,
+    /// The spread `σ_line` along the line between the parents.
+    pub sigma_line: f64,
+}
+
+impl Crossover<Vec<f64>> for IsoLineDd {
+    fn crossover<R: Rng + ?Sized>(
+        &mut self,
+        a: &Vec<f64>,
+        b: &Vec<f64>,
+        rng: &mut R,
+    ) -> [Vec<f64>; 2] {
+        let child = |x: &[f64], y: &[f64], rng: &mut R| {
+            let line = self.sigma_line * standard_normal(rng);
+            x.iter()
+                .zip(y)
+                .map(|(p, q)| p + self.sigma_iso * standard_normal(rng) + line * (q - p))
+                .collect()
+        };
+
+        [child(a, b, rng), child(b, a, rng)]
+    }
+}
+
 /// Clamps every coordinate into the bounds.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Clamp(pub Bounds);
