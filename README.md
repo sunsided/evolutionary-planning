@@ -1,12 +1,28 @@
 # evolutionary-planning
 
+[![crates.io](https://img.shields.io/crates/v/evolutionary-planning.svg)](https://crates.io/crates/evolutionary-planning)
+[![docs.rs](https://img.shields.io/docsrs/evolutionary-planning)](https://docs.rs/evolutionary-planning)
+[![CI](https://github.com/sunsided/evolutionary-planning/actions/workflows/ci.yml/badge.svg)](https://github.com/sunsided/evolutionary-planning/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/sunsided/evolutionary-planning/graph/badge.svg)](https://codecov.io/gh/sunsided/evolutionary-planning)
+[![MSRV](https://img.shields.io/crates/msrv/evolutionary-planning)](https://crates.io/crates/evolutionary-planning)
+[![License](https://img.shields.io/crates/l/evolutionary-planning)](https://github.com/sunsided/evolutionary-planning#license)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
+
 Evolutionary planning: genetic algorithms, evolution strategies and multi-objective evolutionary search over plans, paths and trajectories.
 
 `no_std` + `alloc`, `forbid(unsafe_code)`. Every objective is minimised, all randomness comes
 from a caller-provided `rand_core::Rng` (the crate ships `SplitMix64`), and every run takes a
 budget that is asked before each evaluation, so seeded runs are reproducible and limits are
-exact. See [`docs/design.md`](docs/design.md) for the architecture, the design rules and the
+exact. See [`docs/design.md`](https://github.com/sunsided/evolutionary-planning/blob/main/docs/design.md) for the architecture, the design rules and the
 paper table.
+
+## Installation
+
+```sh
+cargo add evolutionary-planning
+```
+
+Enable the `sas-plus` feature for the GA over SAS+ plans.
 
 ## Scope and status
 
@@ -68,7 +84,14 @@ Pre-release. Version 0.0.0 reserves the name; the API will change.
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/sunsided/evolutionary-planning/blob/main/LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](https://github.com/sunsided/evolutionary-planning/blob/main/LICENSE-MIT))
 
 at your option.
+
+The examples in [`examples/`](https://github.com/sunsided/evolutionary-planning/tree/main/examples) are public domain
+([CC0-1.0](https://github.com/sunsided/evolutionary-planning/blob/main/LICENSES/CC0-1.0.txt)): copy them into anything.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion
+in this work by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
+without any additional terms or conditions.
