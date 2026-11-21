@@ -21,14 +21,14 @@ libm = "0.2.16"
 # The generator trait every algorithm draws its randomness from.
 rand_core = { version = "0.10.1", default-features = false }
 # The shared Budget trait of the planning crates.
-search-core = { path = "../search-core", version = "0.3", default-features = false }
+search-core = { version = "0.3", default-features = false }
 # SAS+ tasks for the plan GA; read-only, behind the `sas-plus` feature.
-sas-plus = { path = "../sas-plus", version = "0.2.1", default-features = false, optional = true }
+sas-plus = { version = "0.2.1", default-features = false, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 proptest = "1.12"
-sas-plus = { path = "../sas-plus", version = "0.2.1", features = ["random"] }
+sas-plus = { version = "0.2.1", features = ["random"] }
 
 # The convergence tests run hundreds of thousands of evaluations; unoptimised they take minutes.
 [profile.test]
