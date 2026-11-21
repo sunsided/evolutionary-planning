@@ -87,3 +87,8 @@ pub use multi::MultiOutcome;
 pub use objective::{MultiObjective, MultiObjectiveFn, Objective, multi_objective_fn};
 pub use observer::{Event, Observer, ObserverFn, observer_fn};
 pub use rng::{SplitMix64, below, chance, standard_normal, uniform, unit_f64};
+
+/// Doctests for the code examples in README.md (not part of the API).
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+mod readme_doctests {}
