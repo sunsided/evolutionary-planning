@@ -40,6 +40,7 @@ pub mod rhea;
 pub mod rng;
 #[cfg(feature = "sas-plus")]
 pub mod sas;
+pub mod stl;
 
 pub use budget::{Budget, Limits, Stats, Stop};
 pub use cost::{Individual, ranking, sanitize};
