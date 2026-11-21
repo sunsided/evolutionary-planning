@@ -220,6 +220,39 @@ impl<I, S, X, M, P> Ga<I, S, X, M, P> {
         self.evolve(seeds, &mut evaluator, &mut NoRefine, rng)
     }
 
+    /// Runs the GA as a memetic algorithm: every evaluated offspring (and initial member)
+    /// goes through `memetic`'s local search according to its schedule. Local search
+    /// evaluations count against the same budget.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Config::population_size`] is below `2`.
+    pub fn run_memetic<G, L, O, B, Obs, R>(
+        &mut self,
+        memetic: &mut crate::memetic::Memetic<L>,
+        objective: &mut O,
+        budget: &mut B,
+        observer: &mut Obs,
+        rng: &mut R,
+    ) -> Outcome<G>
+    where
+        G: Clone,
+        I: Initializer<G>,
+        S: Selection,
+        X: Crossover<G>,
+        M: Mutation<G>,
+        P: Repair<G>,
+        L: crate::memetic::LocalSearch<G>,
+        O: Objective<G> + ?Sized,
+        B: Budget<Stats> + ?Sized,
+        Obs: Observer + ?Sized,
+        R: Rng + ?Sized,
+    {
+        let mut evaluator = Evaluator::new(objective, budget, observer);
+
+        self.evolve(Vec::new(), &mut evaluator, memetic, rng)
+    }
+
     /// The shared driver of the plain and the memetic GA.
     pub(crate) fn evolve<G, O, B, Obs, F, R>(
         &mut self,
