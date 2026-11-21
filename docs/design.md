@@ -377,7 +377,7 @@ with fixed seeds per instance. The meta-GA uses linear ranking with scores 0.8..
   coordinator; one roadmap edge per time step; the cost adds a price per time step to the
   paper's total length, because with waiting allowed the length alone is nearly constant.
 - **2309.07633**: the paper's DE + LHS + pre-motion library is implemented in `de`; the same
-  library also warm-starts CMA-ES in `trajectory`, since the brief asked for ES-based online
+  library also warm-starts CMA-ES in `trajectory` for ES-based online
   trajectory optimisation. No centroidal dynamics.
 - **EvoPlan**: no LLM. STL constraints are fitted by CMA-ES over the thresholds of a
   caller-supplied template, not by program edits over a grammar.
