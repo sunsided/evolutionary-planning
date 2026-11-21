@@ -77,6 +77,9 @@ pub fn constrained_dominates(a: &[f64], violation_a: f64, b: &[f64], violation_b
 ///
 /// `O(m n²)` for `n` points with `m` objectives.
 ///
+/// Objectives and violations must not be NaN (the algorithms map NaN to `+∞` first): with
+/// NaN, dominance can be cyclic, and the points on a cycle end up in no front.
+///
 /// # Panics
 ///
 /// Panics if `violations` is shorter than `points`.
