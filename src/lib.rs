@@ -41,6 +41,7 @@ pub mod rng;
 #[cfg(feature = "sas-plus")]
 pub mod sas;
 pub mod stl;
+pub mod trajectory;
 
 pub use budget::{Budget, Limits, Stats, Stop};
 pub use cost::{Individual, ranking, sanitize};
