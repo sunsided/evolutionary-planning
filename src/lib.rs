@@ -35,6 +35,8 @@ pub mod operators;
 pub mod pareto;
 pub mod problems;
 pub mod rng;
+#[cfg(feature = "sas-plus")]
+pub mod sas;
 
 pub use budget::{Budget, Limits, Stats, Stop};
 pub use cost::{Individual, ranking, sanitize};
