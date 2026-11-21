@@ -9,7 +9,7 @@ use evolutionary_planning::operators::chain::{
     ParamShift, ParamSpec, RandomChain, SegmentInversion, SegmentShift,
 };
 use evolutionary_planning::operators::selection::LinearRanking;
-use evolutionary_planning::operators::{NoRepair, mix};
+use evolutionary_planning::operators::{Mutation, NoRepair, mix};
 use evolutionary_planning::{Limits, SplitMix64};
 
 /// Executes a chain from the origin heading east: kind 0 moves `params[0]` forward, kind 1
@@ -29,14 +29,10 @@ fn execute(chain: &[Action]) -> (f64, f64) {
     (x, y)
 }
 
-/// The robot reaches within 0.1 of the target (3, 4) with a short program.
-#[test]
-fn chain_program_reaches_target() {
-    let model = ActionModel::new(vec![
-        ActionKind::new(vec![ParamSpec::real(0.0, 3.0)]),
-        ActionKind::new(vec![ParamSpec::integer(-90.0, 90.0)]),
-    ]);
-    let mutation = mix(
+/// GLEAM's mix of gene-level (parameter shift and new value) and chain-level (insertion,
+/// deletion, segment shift and inversion) mutations.
+fn chain_mutation(model: &ActionModel) -> impl Mutation<Vec<Action>> {
+    mix(
         mix(
             ParamShift {
                 model: model.clone(),
@@ -72,7 +68,17 @@ fn chain_program_reaches_target() {
             1.0,
         ),
         1.0,
-    );
+    )
+}
+
+/// The robot reaches within 0.1 of the target (3, 4) with a short program.
+#[test]
+fn chain_program_reaches_target() {
+    let model = ActionModel::new(vec![
+        ActionKind::new(vec![ParamSpec::real(0.0, 3.0)]),
+        ActionKind::new(vec![ParamSpec::integer(-90.0, 90.0)]),
+    ]);
+    let mutation = chain_mutation(&model);
     let mut diffusion = Diffusion::new(
         Config::default(),
         Operators {

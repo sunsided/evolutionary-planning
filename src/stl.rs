@@ -22,7 +22,7 @@
 //!
 //! Uses: an objective (`-ρ`), a graded constraint violation `max(0, -ρ)` (Jakob's rule
 //! against flat penalties), a [`shield`] that picks the candidate action whose rollout is most
-//! robust, and [`fit`] to learn thresholds from demonstrations.
+//! robust, and [`fit()`] to learn thresholds from demonstrations.
 //!
 //! ```
 //! use evolutionary_planning::stl::Formula;
@@ -234,7 +234,7 @@ impl Formula {
         }
     }
 
-    /// The number of nodes, the complexity term of [`fit`].
+    /// The number of nodes, the complexity term of [`fit()`].
     #[must_use]
     pub fn complexity(&self) -> usize {
         1 + match self {
@@ -247,7 +247,7 @@ impl Formula {
         }
     }
 
-    /// The predicate thresholds in depth-first order: the parameters [`fit`] tunes.
+    /// The predicate thresholds in depth-first order: the parameters [`fit()`] tunes.
     #[must_use]
     pub fn thresholds(&self) -> Vec<f64> {
         let mut out = Vec::new();

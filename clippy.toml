@@ -1,2 +1,4 @@
 # Author names and acronyms in algorithm citations.
 doc-valid-idents = ["TolFun", "TolX", "TolXUp", "ConditionCov", "NoEffectAxis", "NoEffectCoord", "EqualFunValues", "OneMax", "LeadingOnes", "McKay", "CMA-ES", "NSGA-II", "NSGA-III", "MOEA/D", "MAP-Elites", "HyGLEAM", "GLEAM", "RHEA", "RMHC", "RADES", "EvoPlan", "SplitMix64", ".."]
+too-many-lines-threshold = 60
+cognitive-complexity-threshold = 15

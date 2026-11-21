@@ -49,7 +49,7 @@ use crate::operators::chain::{
     CutAndSplice, DeleteGene, GeneShift, InsertGene, ReplaceGene, SegmentInversion,
 };
 use crate::operators::selection::Tournament;
-use crate::operators::{Initializer, Repair, mix};
+use crate::operators::{Initializer, Mutation, Repair, mix};
 use crate::rng::below;
 use crate::{Budget, Objective, Outcome, Stats};
 
@@ -351,35 +351,7 @@ where
         "a task without operators has no plans to evolve"
     );
 
-    let genes = RandomOperator {
-        count: task.operators.len(),
-    };
-    let mutation = mix(
-        mix(
-            InsertGene {
-                genes,
-                max_len: config.max_len,
-            },
-            2.0,
-            DeleteGene { min_len: 0 },
-            1.0,
-        ),
-        3.0,
-        mix(
-            ReplaceGene { genes },
-            2.0,
-            mix(
-                GeneShift,
-                1.0,
-                SegmentInversion {
-                    max_segment: Some(4),
-                },
-                1.0,
-            ),
-            2.0,
-        ),
-        4.0,
-    );
+    let mutation = chain_mutation(task.operators.len(), config.max_len);
     let mut ga = Ga::new(
         GaConfig {
             population_size: config.population_size,
@@ -419,6 +391,36 @@ where
         cost,
         outcome,
     }
+}
+
+/// GLEAM's operator mix for plan chains: gene insertion and deletion, replacement, gene shift
+/// and segment inversion, weighted towards insertion and replacement.
+fn chain_mutation(operators: usize, max_len: usize) -> impl Mutation<Vec<OpId>> {
+    let genes = RandomOperator { count: operators };
+
+    mix(
+        mix(
+            InsertGene { genes, max_len },
+            2.0,
+            DeleteGene { min_len: 0 },
+            1.0,
+        ),
+        3.0,
+        mix(
+            ReplaceGene { genes },
+            2.0,
+            mix(
+                GeneShift,
+                1.0,
+                SegmentInversion {
+                    max_segment: Some(4),
+                },
+                1.0,
+            ),
+            2.0,
+        ),
+        4.0,
+    )
 }
 
 #[cfg(test)]
