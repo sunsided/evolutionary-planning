@@ -8,8 +8,41 @@
 //! seed reproduces a run. Every run takes a [`Budget`] that is asked before each evaluation;
 //! [`Limits`] covers evaluations, generations and a target cost.
 //!
-//! See `docs/design.md` in the repository for the architecture, the paper table and the
-//! design rules.
+//! # Modules
+//!
+//! | Family | Modules |
+//! |---|---|
+//! | Core | [`operators`] (traits and representations), [`budget`], [`observer`], [`rng`], [`cost`], [`objective`], [`problems`] |
+//! | Single objective | [`ga`], [`diffusion`], [`hill_climb`], [`es`], [`cmaes`], [`de`], [`memetic`] |
+//! | Multi objective | [`pareto`], [`nsga2`], [`nsga3`], [`moead`] |
+//! | Quality diversity | [`map_elites`] |
+//! | Planning | [`rhea`], [`stl`], [`trajectory`], [`graph_path`], `sas` (feature `sas-plus`), [`programmer`] |
+//!
+//! ```mermaid
+//! graph TD
+//!     core[rng, cost, budget, observer] --> ops[operators]
+//!     ops --> single[ga, diffusion, hill_climb, es, cmaes, de]
+//!     single --> memetic
+//!     ops --> multi[pareto, nsga2, nsga3, moead]
+//!     ops --> qd[map_elites]
+//!     single --> planning[rhea, stl, trajectory, graph_path, sas, programmer]
+//! ```
+//!
+//! # Example
+//!
+//! ```
+//! use evolutionary_planning::cmaes::{CmaEs, Config};
+//! use evolutionary_planning::problems::single::ellipsoid;
+//! use evolutionary_planning::{Limits, SplitMix64};
+//!
+//! let mut cma = CmaEs::new(vec![1.0; 6], 0.5, Config::default());
+//! let mut objective = |x: &Vec<f64>| ellipsoid(x);
+//! let outcome = cma.minimize(&mut objective, &mut Limits::evaluations(10_000).with_target(1e-10), &mut (), &mut SplitMix64::new(7));
+//! assert!(outcome.best_cost() <= 1e-10);
+//! ```
+//!
+//! See `docs/design.md` in the repository for the architecture, the paper table, the design
+//! rules and the deviations from the source papers.
 //!
 //! Repository: <https://github.com/sunsided/evolutionary-planning>
 

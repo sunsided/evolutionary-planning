@@ -1,7 +1,7 @@
 # evolutionary-planning: design
 
-Status: draft on branch `draft/initial`. This document fixes scope, architecture, traits and
-milestones before the code; the [Milestones](#milestones) section tracks what is implemented.
+Status: draft on branch `draft/initial`. All five milestones are implemented; see
+[Milestones](#milestones) and [Deviations](#deviations).
 
 ## Goal and scope
 
@@ -153,8 +153,8 @@ them unchanged) and the gene-level operators act on `chain::Action`.
 
 Generational: evaluate, keep `elitism` best, fill the rest by selection, crossover with
 probability `crossover_rate`, mutation, repair, evaluation. Steady state: each step breeds one
-or two offspring which replace the worst (or a tournament loser) if better (configurable
-replacement). Selection schemes: tournament (size `k`, deterministic), truncation, roulette
+or two offspring, each of which replaces the current worst individual (always, or only if
+better). Selection schemes: tournament (size `k`, deterministic), truncation, roulette
 (on `max - cost` shifted to positive), linear ranking with selective pressure `s ∈ [1, 2]`
 (EP's 0.8..1.2 scores are `s = 1.2`), and stochastic universal sampling.
 
@@ -190,8 +190,8 @@ drift across plateaus as in Olesen et al.). Optional restarts after a stagnation
 (μ/ρ,λ) and (μ/ρ+λ) over `Vec<f64>` with self-adaptive step sizes: one global σ (τ = 1/√n)
 or one per coordinate (τ' = 1/√(2n), τ = 1/√(2√n)), intermediate recombination of ρ parents
 for object variables and step sizes, discrete recombination optional. The (1+1)-ES uses
-Rechenberg's 1/5th rule with the Kern et al. factor `exp(1/3)` on success and `exp(-1/12)`
-on failure (stationary at success rate 1/5).
+Rechenberg's 1/5th rule with factors `exp(1/3)` on success and `exp(-1/12)` on failure,
+which keep σ stationary at a success rate of exactly 1/5.
 
 ### CMA-ES
 
@@ -205,7 +205,7 @@ NoEffectCoord, ConditionCov, EqualFunValues, Stagnation, TolXUp, TolFun, TolX, p
 Interfaces: ask/tell (`ask` fills λ candidates, `tell` takes their costs), `minimize` as a
 convenience, and `ipop` (restarts with doubled λ, Auger and Hansen 2005). Box bounds are
 handled by penalisation (63) on the repaired point when the caller asks for it. Warm start:
-`CmaEs::with_state` takes a mean, σ and covariance from a previous run.
+`CmaEs::with_covariance` takes a mean, σ and covariance from a previous run, and `CmaEs::set_mean` moves the mean of a running one.
 
 ### Differential evolution
 
@@ -258,7 +258,7 @@ Finite-trace signal temporal logic over a trace `&[&[f64]]` (time steps × signa
 quantitative (robustness) semantics of Donzé and Maler: predicates `x_i ≥ c` and `x_i ≤ c`,
 negation, conjunction, disjunction, bounded `G[a,b]`, `F[a,b]`, `U[a,b]`. Windows are clipped
 to the trace (finite-trace semantics; `G` over an empty window is `+∞`, `F` is `-∞`).
-`robustness(formula, trace, t)`. Uses: as an objective (maximise robustness = minimise
+`Formula::robustness(trace)` at the first step, `Formula::signal` at every step. Uses: as an objective (maximise robustness = minimise
 `-ρ`), as a constraint (violation `max(0, -ρ)`), as a shield that picks the candidate action
 with the highest robustness, and in `stl::fit` which fits the thresholds of a template
 formula to demonstrations `D+` and perturbed negatives `D−` with EvoPlan's score
@@ -347,12 +347,42 @@ decoded GA on a set of training instances within a fixed evaluation budget plus 
 
 ## Milestones
 
-1. Core, operators, GA, RMHC, ES — planned.
-2. CMA-ES with IPOP, DE with LHS, warm-start library, RADES — planned.
-3. Pareto tools, NSGA-II, NSGA-III, MOEA/D — planned.
-4. MAP-Elites — planned.
+1. Core, operators, GA, RMHC, ES — implemented.
+2. CMA-ES with IPOP, DE with LHS, warm-start library, RADES — implemented.
+3. Pareto tools, NSGA-II, NSGA-III, MOEA/D — implemented.
+4. MAP-Elites — implemented.
 5. RHEA, STL, trajectories, graph paths, SAS+, diffusion model and HyGLEAM, intersection,
-   evolutionary programmer — planned.
+   evolutionary programmer — implemented.
+
+Later: tree-based GP over a planning-operator language; an island model; SPEA2;
+parallel evaluation behind a `std` feature.
+
+## Deviations
+
+- **Minimisation everywhere**, including forward models (costs, not rewards).
+- **CMA-ES Figure 7.** Table 1's formulas give weight sums of -0.988, -0.649, -0.424 and
+  -0.286 for n = 5, 10, 25, 100 (exactly `-c_1/c_μ`); the figure prints -0.95, -0.63, -0.42,
+  -0.28. Table 1 is implemented and tested exactly; the figure is checked to 0.05.
+- **CMA-ES eigendecomposition** by cyclic Jacobi, warm-started from the previous basis,
+  instead of LAPACK; same decomposition up to rounding.
+- **RADES**: the paper leaves open which archive member to delete on overflow (a random one
+  here) and whether `r1 = r2` is allowed (redrawn here, as a zero difference vector is
+  useless).
+- **Intersection benchmark**: prioritised space-time Dijkstra replaces dRRT* as the
+  coordinator; one roadmap edge per time step.
+- **2309.07633**: the paper's DE + LHS + pre-motion library is implemented in `de`; the same
+  library also warm-starts CMA-ES in `trajectory`, since the brief asked for ES-based online
+  trajectory optimisation. No centroidal dynamics.
+- **EvoPlan**: no LLM. STL constraints are fitted by CMA-ES over the thresholds of a
+  caller-supplied template, not by program edits over a grammar.
+- **Evolutionary Programmer**: an 18-bit genome over this crate's operator library instead of
+  64 bits over the paper's; graph paths instead of UAV splines; no tree GP.
+- **GLEAM and HyGLEAM**: Jakob (2021) names the operators and the cost-benefit adaptation
+  without formulas. Parameter shift draws log-uniform steps between the full range and a
+  thousandth of it; the adaptation moves level probabilities halfway towards the normalised
+  relative gain per evaluation every `window` local searches, with a floor.
+- **NSGA-III** mates uniformly at random, as in the original; constrained problems use
+  constrained domination in the sort rather than the constrained NSGA-III's tournament.
 
 ## Paper table
 
@@ -373,7 +403,14 @@ Each with the default taken:
 - Rewards or costs for forward models? Default: costs (minimisation everywhere).
 - Should the SAS+ bridge be a regular optional dependency (current) or dev-only? Default:
   optional dependency behind `sas-plus`, off by default.
-- Tree-based GP over a planning-operator language (from the Evolutionary Programmer brief):
-  the paper itself uses a fixed-length bit string; the bit-string programmer is implemented,
-  tree GP is not. Default: leave tree GP for later.
-- Warm-start library for ES vs DE: both supported; the paper used DE.
+- Tree-based GP over a planning-operator language: the Evolutionary Programmer itself uses a
+  fixed-length bit string, which is implemented. Default: tree GP later.
+- Online trajectory warm starts: the paper used DE; both DE (`De::run_from` with library
+  seeds) and CMA-ES (`trajectory`) are supported. Default: CMA-ES for `trajectory`.
+- Should `Stats::best_cost` of multi-objective runs carry a scalar (for example the
+  hypervolume) so budgets can target it? Default: left at `+∞`.
+- Generic graph vertex types instead of `usize` in `graph_path`? Default: `usize`, with the
+  grid mapping cells to indices.
+- `search-core` is used only for `Budget`; should the crate also adopt `search-core`'s
+  `Goal`/`Heuristic` traits for the RHEA forward model? Default: no, the model reports costs
+  and episode ends itself.
