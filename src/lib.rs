@@ -25,7 +25,7 @@
 //!     single --> memetic
 //!     ops --> multi[pareto, nsga2, nsga3, moead]
 //!     ops --> qd[map_elites]
-//!     single --> planning[rhea, stl, trajectory, graph_path, sas, programmer]
+//!     single --> planning[rhea, stl, trajectory, graph_path, sas, programmer, gp]
 //! ```
 //!
 //! # Example

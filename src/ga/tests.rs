@@ -176,3 +176,20 @@ fn zero_budget() {
 
     assert!(outcome.best.is_none() && outcome.population.is_empty());
 }
+
+/// Elitism of the whole population is clamped to `size - 1`, so every generation still breeds
+/// (and the budget still stops the run).
+#[test]
+fn full_elitism_still_breeds() {
+    let mut ga = one_max_ga(Scheme::Generational);
+    ga.config.elitism = 1_000;
+    let mut objective = |b: &Vec<bool>| one_max(b);
+    let outcome = ga.run(
+        &mut objective,
+        &mut Limits::evaluations(500),
+        &mut (),
+        &mut SplitMix64::new(1),
+    );
+
+    assert_eq!(outcome.stats.evaluations, 500);
+}

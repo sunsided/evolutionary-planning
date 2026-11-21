@@ -33,7 +33,7 @@ In scope, grouped by family:
   from demonstrations; GA path planning on graphs and grids; online trajectory optimisation
   with warm-started CMA-ES; GA over SAS+ action sequences with plan repair (feature
   `sas-plus`); a multi-robot intersection benchmark; an evolutionary programmer that evolves
-  GA configurations.
+  GA configurations; tree-based genetic programming over a caller's operator language.
 
 Out of scope: neural networks or learned world models (the forward model is the caller's),
 LLM-driven variation (EvoPlan's neural part), parallel evaluation (the crate is `no_std`; a
@@ -106,7 +106,7 @@ graph TD
     memetic[memetic: local search, HyGLEAM adaptation]
     multi[pareto, nsga2, nsga3, moead]
     qd[map_elites]
-    bridges[rhea, stl, trajectory, graph_path, sas, programmer]
+    bridges[rhea, stl, trajectory, graph_path, sas, programmer, gp]
     problems[problems: benchmarks, intersection]
     core --> ops --> single --> memetic
     ops --> multi
@@ -397,7 +397,8 @@ with ramped half-and-half initialisation, subtree crossover, subtree and point m
 - **EvoPlan**: no LLM. STL constraints are fitted by CMA-ES over the thresholds of a
   caller-supplied template, not by program edits over a grammar.
 - **Evolutionary Programmer**: an 18-bit genome over this crate's operator library instead of
-  64 bits over the paper's; graph paths instead of UAV splines; no tree GP.
+  64 bits over the paper's; graph paths instead of UAV splines. Tree GP over planning programs
+  is provided separately in `gp` (untyped, memoryless programs).
 - **GLEAM and HyGLEAM**: Jakob (2021) names the operators and the cost-benefit adaptation
   without formulas. Parameter shift draws log-uniform steps between the full range and a
   thousandth of it; the adaptation moves level probabilities halfway towards the normalised

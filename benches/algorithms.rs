@@ -369,6 +369,8 @@ fn bench_trajectory(c: &mut Criterion) {
 
 /// The SAS+ plan GA on a random task (feature `sas-plus`).
 fn bench_sas(c: &mut Criterion) {
+    #[cfg(not(feature = "sas-plus"))]
+    let _ = c;
     #[cfg(feature = "sas-plus")]
     {
         use sas_plus::random::{RandomTaskParams, random_task};

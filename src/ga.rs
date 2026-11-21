@@ -63,8 +63,8 @@ pub struct Config {
     /// The number of individuals, at least `2`.
     pub population_size: usize,
     /// Generational scheme: the number of best individuals copied unchanged into the next
-    /// generation (clamped to the population size). Ignored by the steady-state scheme, which
-    /// is elitist by construction.
+    /// generation (clamped to `population_size - 1`, so every generation breeds). Ignored by
+    /// the steady-state scheme, which is elitist by construction.
     pub elitism: usize,
     /// The probability that a pair of parents is recombined; otherwise the children are
     /// copies.
@@ -351,7 +351,8 @@ impl<I, S, X, M, P> Ga<I, S, X, M, P> {
         loop {
             crate::cost::sort_population(population);
             let costs: Vec<f64> = population.iter().map(|i| i.cost).collect();
-            let mut next: Vec<Individual<G>> = population[..self.config.elitism.min(size)].to_vec();
+            let mut next: Vec<Individual<G>> =
+                population[..self.config.elitism.min(size - 1)].to_vec();
             while next.len() < size {
                 parents.clear();
                 self.operators

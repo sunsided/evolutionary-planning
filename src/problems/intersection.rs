@@ -17,6 +17,12 @@
 //! A robot that finds no plan adds a penalty of `1000` plus its straight-line distance, so
 //! infeasible configurations still compare.
 //!
+//! In the [`Intersection::crossing`] scene the robots drive straight, and the coarsest
+//! lattice (`b_i = 6` for all) happens to be conflict-free, so the optimum sits at that corner
+//! of the box (cost 412 for eight robots) and the heights `h_i` only matter for
+//! configurations that need detours. It is a smoke benchmark for the optimisers rather than
+//! a hard coordination problem; scenes with turning robots are an open extension.
+//!
 //! ```
 //! use evolutionary_planning::de::rades::{Config, Rades};
 //! use evolutionary_planning::problems::intersection::Intersection;
@@ -553,6 +559,23 @@ mod tests {
             outcome.best_cost(),
             costs[20]
         );
+    }
+
+    /// In the straight-crossing scene the coarsest lattice is conflict-free and optimal
+    /// (documented in the module docs): `b_i = 6` costs 412 for eight robots whatever `h_i`.
+    #[test]
+    fn coarsest_lattice_is_optimal_in_the_crossing() {
+        let mut scene = Intersection::crossing(8);
+        let bounds = scene.bounds();
+        let upper = bounds.upper().to_vec();
+        let mut low_heights = upper.clone();
+        for k in (1..low_heights.len()).step_by(2) {
+            low_heights[k] = bounds.lower()[k];
+        }
+
+        assert!((scene.evaluate(&upper) - 412.0).abs() < 1e-9);
+        assert!((scene.evaluate(&low_heights) - 412.0).abs() < 1e-9);
+        assert!(scene.evaluate(&bounds.lower().to_vec()) > 412.0);
     }
 
     /// Lattice resampling and roadmap structure.

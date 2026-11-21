@@ -316,6 +316,17 @@ fn population(members: Vec<Member>) -> Vec<Individual<Vec<f64>>> {
 /// The (1+1)-ES with the 1/5th success rule: one parent, one Gaussian offspring per
 /// iteration, accepted if not worse; σ grows by `exp(1/3)` on success and shrinks by
 /// `exp(-1/12)` on failure, which keeps it stationary at a success rate of exactly 1/5.
+///
+/// ```
+/// use evolutionary_planning::es::OnePlusOne;
+/// use evolutionary_planning::problems::single::sphere;
+/// use evolutionary_planning::{Limits, SplitMix64};
+///
+/// let mut es = OnePlusOne { sigma: 1.0, min_sigma: 1e-300 };
+/// let mut objective = |x: &Vec<f64>| sphere(x);
+/// let outcome = es.run(vec![2.0; 5], &mut objective, &mut Limits::evaluations(3_000), &mut (), &mut SplitMix64::new(1));
+/// assert!(outcome.best_cost() < 1e-10);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OnePlusOne {
     /// The initial step size (absolute).
