@@ -6,7 +6,8 @@
 //! by rolling it out through the model from the current state; it returns the first action
 //! of the best sequence. With *shift buffering* the best sequence is shifted by one step,
 //! padded with a random action and becomes the starting point of the next decision, so the
-//! search is not repeated from scratch.
+//! search is not repeated from scratch. Each decision spends exactly
+//! [`Config::evaluations`] sequence evaluations (at least one per initial sequence).
 //!
 //! The model is the caller's: a simulator, an analytic model or a learned one. This crate
 //! minimises, so [`ForwardModel::step`] reports a per-step **cost** (use `-reward` for a
@@ -88,7 +89,9 @@ pub struct Config {
     pub horizon: usize,
     /// The number of sequences evolved; `1` is RMHC.
     pub population_size: usize,
-    /// Sequence evaluations (each `rollouts` model rollouts) per decision, at least `1`.
+    /// Sequence evaluations (each `rollouts` model rollouts) per decision. Exact, except that
+    /// every sequence of the initial population is evaluated, so the effective budget is at
+    /// least `population_size`.
     pub evaluations: u64,
     /// The discount `γ ∈ (0, 1]` of step costs; `1` is the undiscounted sum of Olesen et al.
     pub discount: f64,
@@ -253,11 +256,17 @@ impl<A: Clone, S: Initializer<A>, M: Mutation<Vec<A>>> RollingHorizon<A, S, M> {
         }
 
         while evaluations < c.evaluations.max(1) {
+            let remaining = c.evaluations.max(1) - evaluations;
             if c.population_size == 1 {
-                evaluations +=
-                    self.hill_climb_step(model, state, &mut population[0], &mut costs[0], rng);
+                evaluations += self.hill_climb_step(
+                    model,
+                    state,
+                    &mut population[0],
+                    &mut costs[0],
+                    remaining,
+                    rng,
+                );
             } else {
-                let remaining = c.evaluations.max(1) - evaluations;
                 evaluations +=
                     self.generation(model, state, &mut population, &mut costs, remaining, rng);
             }
@@ -286,13 +295,15 @@ impl<A: Clone, S: Initializer<A>, M: Mutation<Vec<A>>> RollingHorizon<A, S, M> {
         population
     }
 
-    /// One RMHC iteration; returns the evaluations spent.
+    /// One RMHC iteration within `remaining` evaluations (the incumbent is re-evaluated only
+    /// if two remain); returns the evaluations spent.
     fn hill_climb_step<F, R>(
         &mut self,
         model: &mut F,
         state: &F::State,
         current: &mut Vec<A>,
         cost: &mut f64,
+        remaining: u64,
         rng: &mut R,
     ) -> u64
     where
@@ -300,7 +311,7 @@ impl<A: Clone, S: Initializer<A>, M: Mutation<Vec<A>>> RollingHorizon<A, S, M> {
         R: Rng + ?Sized,
     {
         let mut spent = 0;
-        if self.config.reevaluate && self.config.evaluations > 1 {
+        if self.config.reevaluate && remaining >= 2 {
             *cost = self.evaluate(model, state, current, rng);
             spent += 1;
         }
@@ -522,6 +533,26 @@ mod tests {
                 6,
                 "population {population_size}"
             );
+        }
+    }
+
+    /// Each decision spends exactly the configured evaluations, with re-evaluation and with a
+    /// population.
+    #[test]
+    fn exact_evaluations_per_decision() {
+        for (population_size, reevaluate) in [(1, false), (1, true), (7, false)] {
+            let config = Config {
+                horizon: 6,
+                population_size,
+                reevaluate,
+                evaluations: 101,
+                ..Config::default()
+            };
+            let mut planner =
+                RollingHorizon::new(config, initializer_fn(moves as fn(&mut dyn Rng) -> i32));
+            let mut model = Corridor { goal: 6, slip: 0.0 };
+            let decision = planner.plan(&mut model, &0, &mut SplitMix64::new(1));
+            assert_eq!(decision.evaluations, 101, "{population_size} {reevaluate}");
         }
     }
 

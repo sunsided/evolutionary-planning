@@ -15,6 +15,28 @@
 //! Frequency and intensity are either fixed ([`Schedule::Fixed`]) or adapted
 //! ([`Schedule::Adaptive`]): each is a discrete set of levels with probabilities that move
 //! towards the levels that yielded the most relative improvement per evaluation.
+//!
+//! ```
+//! use evolutionary_planning::ga::{Config, Ga, Operators};
+//! use evolutionary_planning::memetic::{Memetic, Rosenbrock};
+//! use evolutionary_planning::operators::real::{Bounds, Polynomial, Sbx};
+//! use evolutionary_planning::operators::{NoRepair, selection::Tournament};
+//! use evolutionary_planning::problems::single::rosenbrock;
+//! use evolutionary_planning::{Limits, SplitMix64};
+//!
+//! let bounds = Bounds::uniform(4, -2.0, 2.0);
+//! let mut ga = Ga::new(Config { population_size: 10, ..Config::default() }, Operators {
+//!     init: bounds.clone(),
+//!     selection: Tournament { size: 2 },
+//!     crossover: Sbx { bounds: bounds.clone(), eta: 15.0 },
+//!     mutation: Polynomial { bounds, eta: 20.0, rate: None },
+//!     repair: NoRepair,
+//! });
+//! let mut memetic = Memetic::adaptive(Rosenbrock::default());
+//! let mut objective = |x: &Vec<f64>| rosenbrock(x);
+//! let outcome = ga.run_memetic(&mut memetic, &mut objective, &mut Limits::evaluations(20_000), &mut (), &mut SplitMix64::new(1));
+//! assert!(outcome.best_cost() < 1e-6);
+//! ```
 
 use alloc::vec::Vec;
 
@@ -286,6 +308,8 @@ impl<T: Copy> Levels<T> {
             return;
         }
 
+        // Only levels used in this window carry evidence: they share their combined
+        // probability mass in proportion to their mean benefit; unused levels keep theirs.
         #[expect(clippy::cast_precision_loss, reason = "use counts are small")]
         let mean: Vec<f64> = self
             .benefit
@@ -293,11 +317,25 @@ impl<T: Copy> Levels<T> {
             .zip(&self.uses)
             .map(|(b, &u)| if u == 0 { 0.0 } else { b / u as f64 })
             .collect();
-        let total: f64 = mean.iter().sum();
-        if total > 0.0 {
+        let used_mass: f64 = self
+            .probabilities
+            .iter()
+            .zip(&self.uses)
+            .filter(|(_, u)| **u > 0)
+            .map(|(p, _)| p)
+            .sum();
+        let used_benefit: f64 = mean
+            .iter()
+            .zip(&self.uses)
+            .filter(|(_, u)| **u > 0)
+            .map(|(m, _)| m)
+            .sum();
+        if used_benefit > 0.0 {
             // Half old, half new, so one noisy window cannot swing the distribution.
-            for (p, m) in self.probabilities.iter_mut().zip(&mean) {
-                *p = 0.5 * *p + 0.5 * m / total;
+            for ((p, m), &u) in self.probabilities.iter_mut().zip(&mean).zip(&self.uses) {
+                if u > 0 {
+                    *p = 0.5 * *p + 0.5 * used_mass * m / used_benefit;
+                }
             }
         }
 
@@ -333,10 +371,16 @@ pub enum Schedule {
 /// relative fitness gain per evaluation they produced.
 ///
 /// The gain of one local search is `(before - after) / max(|before|, 1e-12)`; its benefit
-/// is the gain divided by the evaluations spent. After `window` local searches the
-/// probabilities move halfway towards the normalised mean benefit per level, with a floor of
-/// `floor / levels` so no level dies. The update rule is a reconstruction: Jakob (2021)
-/// describes cost-benefit adaptation without formulas.
+/// is the gain divided by the evaluations spent. After `window` local searches the levels used
+/// in that window share their probability mass in proportion to their mean benefit (moving
+/// halfway there), unused levels keep theirs, and a floor of `floor / levels` keeps every
+/// level alive. The update rule is a reconstruction: Jakob (2021) describes cost-benefit
+/// adaptation without formulas.
+///
+/// Limitation: the benefit is measured per local search, so it reflects intensity directly
+/// but frequency only weakly (a frequency level is credited with the searches it triggered,
+/// not with what the skipped offspring would have cost); intensity is the parameter that
+/// really adapts.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Adaptive {
     /// The evaluation caps to choose from.

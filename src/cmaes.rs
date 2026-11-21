@@ -364,7 +364,9 @@ impl CmaEs {
         libm::sqrt(norm)
     }
 
-    /// The Heaviside function `h_σ`, using the generation number `g + 1` of this update.
+    /// The Heaviside function `h_σ`, using the generation number `g + 1` of this update: the
+    /// correction `sqrt(1 - (1 - c_σ)^(2 (g + 1)))` equals Appendix C's
+    /// `sqrt(1 - (1 - cs)^(2 counteval / lambda))`, as `counteval = λ (g + 1)` there.
     fn h_sigma(&self, norm_ps: f64) -> f64 {
         let p = &self.params;
         #[expect(

@@ -204,10 +204,11 @@ impl OnlineOptimizer {
             || (cma.mean().to_vec(), f64::INFINITY),
             |b| (b.genome, b.cost),
         );
+        let (sigma, covariance) = carried_distribution(&cma);
         self.carry = Some(Carry {
             controls: controls.clone(),
-            sigma: cma.sigma(),
-            covariance: cma.covariance().to_vec(),
+            sigma,
+            covariance,
         });
 
         Replan {
@@ -266,6 +267,26 @@ impl OnlineOptimizer {
             .map_or_else(|| alloc::vec![0.0; n], Bounds::center);
         (CmaEs::new(mean, c.sigma, config), WarmStart::Cold)
     }
+}
+
+/// The step size and covariance to carry into the next replan: `C` scaled to unit mean
+/// variance (with σ scaled inversely, the same distribution), so that the σ floor of the warm
+/// start bounds the actual spread; reset to `I` when `C` has become ill-conditioned (above
+/// `1e12`), which happens over long runs once the plan has converged and the task changes.
+fn carried_distribution(cma: &CmaEs) -> (f64, Vec<f64>) {
+    let n = cma.mean().len();
+    let covariance = cma.covariance();
+    #[expect(clippy::cast_precision_loss, reason = "plan sizes are far below 2^52")]
+    let mean_variance = (0..n).map(|i| covariance[i * n + i]).sum::<f64>() / n as f64;
+    if !(mean_variance > 0.0 && mean_variance.is_finite()) || cma.condition() > 1e12 {
+        let mut identity = alloc::vec![0.0; n * n];
+        (0..n).for_each(|i| identity[i * n + i] = 1.0);
+        return (cma.sigma(), identity);
+    }
+
+    let scaled = covariance.iter().map(|c| c / mean_variance).collect();
+
+    (cma.sigma() * libm::sqrt(mean_variance), scaled)
 }
 
 /// Drops the first step and repeats the last one: the receding-horizon shift of a plan.
@@ -383,6 +404,39 @@ mod tests {
         assert_eq!(warm.warm_start, WarmStart::Library);
         assert_eq!(cold.warm_start, WarmStart::Cold);
         assert!(warm.cost < cold.cost, "{} vs {}", warm.cost, cold.cost);
+    }
+
+    /// Over a thousand periods with the target moving halfway, the warm-started loop
+    /// re-converges: the carried distribution never collapses.
+    #[test]
+    fn long_run_with_target_change() {
+        let config = Config {
+            steps: 15,
+            evaluations: 60,
+            ..Config::default()
+        };
+        let mut planner = OnlineOptimizer::new(config);
+        let mut rng = SplitMix64::new(6);
+        let mut state = (0.0, 0.0);
+        for period in 0..1_000 {
+            let target = if period < 500 { 0.5 } else { -0.5 };
+            let plan = planner.replan(
+                &mut |u: &Vec<f64>| point_mass(state, target, u),
+                None,
+                &mut rng,
+            );
+            let a = plan.first()[0];
+            state.1 += 0.1 * a;
+            state.0 += 0.1 * state.1;
+            if period == 499 {
+                assert!((state.0 - 0.5).abs() < 0.05, "first target: {state:?}");
+            }
+        }
+
+        assert!(
+            (state.0 + 0.5).abs() < 0.05 && state.1.abs() < 0.1,
+            "second target: {state:?}"
+        );
     }
 
     /// The shifts move blocks by one step.
