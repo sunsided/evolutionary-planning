@@ -1,8 +1,8 @@
 //! CMA-ES, the covariance matrix adaptation evolution strategy, exactly as in Hansen's
 //! tutorial (arXiv:1604.00772): Figure 6 with the default parameters of Table 1, including
 //! the negative ("active") recombination weights, `h_σ` and `δ(h_σ)`, the rescaling (46) of
-//! negatively weighted steps, the lazy eigendecomposition of Appendix B.2 and the
-//! termination criteria of Appendix B.3. IPOP restarts (Auger and Hansen 2005) with growing
+//! negatively weighted steps, the lazy eigendecomposition of Appendix B.2 (each one
+//! warm-started from the previous eigenbasis) and the termination criteria of Appendix B.3. IPOP restarts (Auger and Hansen 2005) with growing
 //! population size are in [`Ipop`].
 //!
 //! ```mermaid
@@ -425,7 +425,11 @@ impl CmaEs {
     /// Recomputes `B` and `D` from `C`.
     fn decompose(&mut self) {
         let n = self.params.n;
-        let eigen = eigen::decompose(&self.covariance, n);
+        let eigen = if self.basis.len() == n * n {
+            eigen::decompose_in_basis(&self.covariance, n, &self.basis)
+        } else {
+            eigen::decompose(&self.covariance, n)
+        };
         self.degenerate = eigen.values.iter().any(|&v| !(v > 0.0 && v.is_finite()));
         self.scales = eigen
             .values

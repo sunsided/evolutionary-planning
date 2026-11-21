@@ -39,6 +39,51 @@ pub(crate) fn decompose(matrix: &[f64], n: usize) -> Eigen {
     }
 }
 
+/// Decomposes `matrix` starting from the orthonormal `basis` of a previous decomposition:
+/// Jacobi runs on `Bᵀ C B`, which is nearly diagonal when C changed little, so it converges in
+/// one or two sweeps instead of about ten; the eigenvectors are `B V`. The result is the same
+/// decomposition up to rounding.
+pub(crate) fn decompose_in_basis(matrix: &[f64], n: usize, basis: &[f64]) -> Eigen {
+    let c = symmetrised(matrix, n);
+    let rotated = multiply(&transpose(basis, n), &multiply(&c, basis, n), n);
+    let inner = decompose(&rotated, n);
+
+    Eigen {
+        values: inner.values,
+        vectors: multiply(basis, &inner.vectors, n),
+    }
+}
+
+/// The product of two row-major `n × n` matrices.
+fn multiply(a: &[f64], b: &[f64], n: usize) -> Vec<f64> {
+    let mut out = alloc::vec![0.0; n * n];
+    for i in 0..n {
+        for k in 0..n {
+            let aik = a[i * n + k];
+            if aik == 0.0 {
+                continue;
+            }
+            for j in 0..n {
+                out[i * n + j] += aik * b[k * n + j];
+            }
+        }
+    }
+
+    out
+}
+
+/// The transpose of a row-major `n × n` matrix.
+fn transpose(a: &[f64], n: usize) -> Vec<f64> {
+    let mut out = alloc::vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            out[j * n + i] = a[i * n + j];
+        }
+    }
+
+    out
+}
+
 /// Copies the upper triangle of `matrix` into a full symmetric matrix.
 fn symmetrised(matrix: &[f64], n: usize) -> Vec<f64> {
     let mut a = matrix.to_vec();
@@ -137,6 +182,30 @@ mod tests {
                     let expected = if i == j { 1.0 } else { 0.0 };
                     prop_assert!((dot - expected).abs() < 1e-12);
                 }
+            }
+        }
+    }
+
+    /// Starting from an old basis gives the same eigenpairs.
+    #[test]
+    fn warm_start_agrees() {
+        let a = [4.0, 1.0, 0.5, 1.0, 3.0, 0.2, 0.5, 0.2, 2.0];
+        let cold = decompose(&a, 3);
+        let nudged = [4.1, 1.0, 0.5, 1.0, 3.0, 0.25, 0.5, 0.25, 2.0];
+        let warm = decompose_in_basis(&nudged, 3, &cold.vectors);
+        let fresh = decompose(&nudged, 3);
+        let mut w = warm.values.clone();
+        let mut f = fresh.values.clone();
+        w.sort_by(f64::total_cmp);
+        f.sort_by(f64::total_cmp);
+
+        assert!(w.iter().zip(&f).all(|(x, y)| (x - y).abs() < 1e-12));
+        for i in 0..3 {
+            for row in 0..3 {
+                let cb: f64 = (0..3)
+                    .map(|k| nudged[row * 3 + k] * warm.vectors[k * 3 + i])
+                    .sum();
+                assert!((cb - warm.values[i] * warm.vectors[row * 3 + i]).abs() < 1e-12);
             }
         }
     }

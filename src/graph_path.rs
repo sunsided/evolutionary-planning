@@ -65,6 +65,14 @@ impl Graph for AdjacencyList {
     fn neighbours(&self, node: usize, out: &mut Vec<(usize, f64)>) {
         out.extend_from_slice(&self.edges[node]);
     }
+
+    fn edge_cost(&self, from: usize, to: usize) -> Option<f64> {
+        self.edges[from]
+            .iter()
+            .filter(|&&(v, _)| v == to)
+            .map(|&(_, c)| c)
+            .min_by(f64::total_cmp)
+    }
 }
 
 /// A 4- or 8-connected grid with blocked cells; straight moves cost `1`, diagonal moves
@@ -417,13 +425,24 @@ impl Repair<Vec<usize>> for RemoveLoops {
     }
 }
 
-/// Removes loops in place, keeping the first occurrence of each vertex.
+/// Removes loops in place, keeping the first occurrence of each vertex: `O(length)` with a
+/// position table over the vertex range of the path.
 fn remove_loops(path: &mut Vec<usize>) {
+    let Some(&largest) = path.iter().max() else {
+        return;
+    };
+
+    let mut position = alloc::vec![usize::MAX; largest + 1];
     let mut out: Vec<usize> = Vec::with_capacity(path.len());
     for &v in path.iter() {
-        if let Some(k) = out.iter().position(|&w| w == v) {
-            out.truncate(k + 1);
+        let at = position[v];
+        if at < out.len() && out[at] == v {
+            for &dropped in &out[at + 1..] {
+                position[dropped] = usize::MAX;
+            }
+            out.truncate(at + 1);
         } else {
+            position[v] = out.len();
             out.push(v);
         }
     }
@@ -591,6 +610,18 @@ mod tests {
                 assert!(path_cost(&grid, &child).is_some());
             }
         }
+    }
+
+    /// Loop removal keeps the first occurrence and cuts the cycles in between.
+    #[test]
+    fn loops_are_cut() {
+        let mut path = alloc::vec![0, 1, 2, 1, 3, 4, 3, 5, 0, 6];
+        remove_loops(&mut path);
+
+        assert_eq!(path, [0, 6]);
+        let mut path = alloc::vec![0, 1, 2, 3, 2, 4];
+        remove_loops(&mut path);
+        assert_eq!(path, [0, 1, 2, 4]);
     }
 
     /// An unreachable goal yields no path.
