@@ -16,6 +16,8 @@ budget that is asked before each evaluation, so seeded runs are reproducible and
 exact. CMA-ES follows Hansen's tutorial exactly and is tested against its Table 1. See [`docs/design.md`](https://github.com/sunsided/evolutionary-planning/blob/main/docs/design.md) for the architecture, the design rules and the
 paper table.
 
+Part of the [planning and search crates](https://sunsided.github.io/planning-and-search/); see also this crate's [overview page](https://sunsided.github.io/planning-and-search/crates/evolutionary-planning/).
+
 ## Who this is for
 
 - Robotics and control engineers who optimise trajectories or motion parameters online, where the objective is a black box or a simulation and gradients are not available.
