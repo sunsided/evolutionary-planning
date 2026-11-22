@@ -7,6 +7,7 @@ rust-version = "1.85"
 authors = ["Markus Mayer <widemeadows@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sunsided/evolutionary-planning"
+homepage = "https://sunsided.github.io/planning-and-search/crates/evolutionary-planning/"
 readme = "README.md"
 keywords = ["genetic-algorithm", "evolutionary", "cma-es", "nsga2", "planning"]
 categories = ["algorithms", "artificial-intelligence", "science::robotics", "no-std"]
